@@ -3,6 +3,7 @@ MCP Server - 将 Word 文档中的批注（comments）内联到正文中。
 """
 
 import base64
+import io
 import os
 import tempfile
 
@@ -72,6 +73,43 @@ def _inline_comments(doc, comments):
             p_parent.insert(idx + 1, _make_run(comments[cid]))
 
     return processed
+
+
+@mcp.tool()
+def extract_comments(file_base64: str = "", file_path: str = "") -> str:
+    """提取 Word 文档中的所有批注内容。
+
+    支持两种输入方式（二选一）：
+    - file_base64: 传入 base64 编码的 .docx 文件内容（适用于通过聊天上传文件）
+    - file_path: 传入本地 .docx 文件路径
+
+    Args:
+        file_base64: base64 编码的 .docx 文件内容
+        file_path: 本地 .docx 文件路径
+
+    Returns:
+        文档中所有批注的文本内容
+    """
+    if file_base64:
+        file_bytes = base64.b64decode(file_base64)
+        doc = Document(io.BytesIO(file_bytes))
+    elif file_path:
+        if not os.path.exists(file_path):
+            return f"错误：文件不存在 - {file_path}"
+        doc = Document(file_path)
+    else:
+        return "错误：请提供 file_base64 或 file_path 参数"
+
+    comments = _extract_comments(doc)
+
+    if not comments:
+        return "该文档中没有找到批注。"
+
+    lines = [f"共找到 {len(comments)} 条批注：\n"]
+    for i, (cid, text) in enumerate(comments.items(), 1):
+        lines.append(f"{i}. {text}")
+
+    return "\n".join(lines)
 
 
 @mcp.tool()
